@@ -786,67 +786,134 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-with st.sidebar:
-    st.header("RENE Control Center")
-    st.caption("Adjust model, quality, and automation options.")
-    st.divider()
+main_col, side_col = st.columns([2.2, 1.2], gap="large")
 
-    st.subheader("Model")
-    st.info("Model is fixed to `yolov8n.pt` (fastest/lowest) for this activity.")
-    if model is None:
-        st.error("YOLO model failed to load.")
-        st.code(model_error)
+with side_col:
+    st.subheader("Dashboard")
+    
+    tab_controls, tab_alerts, tab_stats = st.tabs(["Controls", "Alerts", "Stats"])
+    
+    with tab_controls:
+        st.info("Model is fixed to `yolov8n.pt`.")
+        if model is None:
+            st.error("YOLO model failed to load.")
+            st.code(model_error)
+        
+        conf_threshold = st.slider("Confidence", 0.10, 0.95, 0.25, 0.05)
+        iou_threshold = st.slider("IoU", 0.10, 0.95, 0.50, 0.05)
+        inference_size = st.select_slider(
+            "Inference Size",
+            options=[320, 416, 512, 640],
+            value=416,
+            help="Lower value = faster inference; higher value = better detail.",
+        )
+        process_every_n_frames = st.select_slider(
+            "Infer Every N Frames",
+            options=[1, 2, 3],
+            value=1,
+            help="Set to 2 or 3 for smoother preview on low-end devices.",
+        )
+        mirror_view = st.checkbox("Mirror View", value=False, help="Toggle selfie-style horizontal mirroring.")
+        
+    with tab_alerts:
+        alert_targets = st.multiselect(
+            "Target Objects",
+            options=available_labels,
+            default=["person", "cell phone", "bottle"]
+            if available_labels and all(x in available_labels for x in ["person", "cell phone", "bottle"])
+            else available_labels[:3],
+        )
+        alert_confidence = st.slider("Min Alert Confidence", 0.10, 0.99, 0.60, 0.05)
+        alert_cooldown_sec = st.slider("Alert Cooldown (s)", 1.0, 20.0, 4.0, 1.0)
+        auto_capture = st.checkbox("Auto-save on target alert", value=True)
+        auto_capture_interval_sec = st.slider("Auto-save interval (s)", 1.0, 30.0, 6.0, 1.0)
 
-    st.subheader("Detection")
-    conf_threshold = st.slider("Confidence", 0.10, 0.95, 0.25, 0.05)
-    iou_threshold = st.slider("IoU", 0.10, 0.95, 0.50, 0.05)
-    inference_size = st.select_slider(
-        "Inference Size",
-        options=[320, 416, 512, 640],
-        value=416,
-        help="Lower value = faster inference; higher value = better detail.",
-    )
-    process_every_n_frames = st.select_slider(
-        "Infer Every N Frames",
-        options=[1, 2, 3],
-        value=1,
-        help="Set to 2 or 3 for smoother preview on low-end devices.",
-    )
-    mirror_view = st.checkbox("Mirror View", value=False, help="Toggle selfie-style horizontal mirroring.")
+    with tab_stats:
+        @st.fragment(run_every="1s")
+        def render_live_stats() -> None:
+            stats = snapshot_runtime()
+            metric_col1, metric_col2, metric_col3 = st.columns(3)
+            metric_col1.metric("FPS", f"{stats['fps']:.1f}")
+            metric_col2.metric("Frames", f"{stats['frames_processed']}")
+            metric_col3.metric("Saved", f"{stats['saved_frames']}")
 
-    st.subheader("Alerts")
-    alert_targets = st.multiselect(
-        "Target Objects",
-        options=available_labels,
-        default=["person", "cell phone", "bottle"]
-        if available_labels and all(x in available_labels for x in ["person", "cell phone", "bottle"])
-        else available_labels[:3],
-    )
-    alert_confidence = st.slider("Min Alert Confidence", 0.10, 0.99, 0.60, 0.05)
-    alert_cooldown_sec = st.slider("Alert Cooldown (s)", 1.0, 20.0, 4.0, 1.0)
-    auto_capture = st.checkbox("Auto-save on target alert", value=True)
-    auto_capture_interval_sec = st.slider("Auto-save interval (s)", 1.0, 30.0, 6.0, 1.0)
+            if stats["latest_alert_message"]:
+                st.warning(stats["latest_alert_message"])
+            else:
+                st.caption("No active alerts.")
 
-    st.divider()
-    if st.button("Reset Session Stats", use_container_width=True):
-        reset_runtime()
-        st.success("Session stats reset.")
-    quick_capture_name = st.text_input("Quick Capture Tag", value="manual_capture")
-    if st.button("Save Current Annotated Frame", use_container_width=True):
-        with RUNTIME.lock:
-            frame_for_save = None if RUNTIME.latest_annotated_frame is None else RUNTIME.latest_annotated_frame.copy()
-        if frame_for_save is None:
-            st.warning("No processed frame available yet.")
-        else:
-            save_frame(frame_for_save, quick_capture_name.replace(" ", "_"))
-            with RUNTIME.lock:
-                RUNTIME.saved_frames += 1
-            st.success("Frame saved to captures/.")
+            with st.expander("Current Counts", expanded=True):
+                if stats["current_frame_counts"]:
+                    st.table(
+                        [
+                            {"Object": obj, "Count": cnt}
+                            for obj, cnt in sorted(
+                                stats["current_frame_counts"].items(), key=lambda x: x[1], reverse=True
+                            )[:8]
+                        ]
+                    )
+                else:
+                    st.caption("No detections yet.")
 
-video_col, info_col = st.columns([1.9, 1.1], gap="medium")
+            with st.expander("Session Tracks", expanded=False):
+                if stats["session_track_counts"]:
+                    st.table(
+                        [
+                            {"Object": obj, "Tracks": cnt}
+                            for obj, cnt in sorted(
+                                stats["session_track_counts"].items(), key=lambda x: x[1], reverse=True
+                            )[:8]
+                        ]
+                    )
+                else:
+                    st.caption("No tracking data yet.")
 
-with video_col:
+            with st.expander("Recent Alerts", expanded=False):
+                if stats["alert_history"]:
+                    for alert_line in stats["alert_history"]:
+                        st.write(f"- {alert_line}")
+                else:
+                    st.caption("No alerts recorded.")
+            st.download_button(
+                label="Download Session Summary (CSV)",
+                data=(
+                    "metric,value\n"
+                    f"fps,{stats['fps']:.3f}\n"
+                    f"frames_processed,{stats['frames_processed']}\n"
+                    f"saved_frames,{stats['saved_frames']}\n"
+                    f"current_objects,{sum(stats['current_frame_counts'].values())}\n"
+                    f"total_unique_tracks,{sum(stats['session_track_counts'].values())}\n"
+                ),
+                file_name="rene_session_summary.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+
+        render_live_stats()
+        
+        st.divider()
+        if st.button("Reset Session Stats", use_container_width=True):
+            reset_runtime()
+            st.success("Session stats reset.")
+
+with main_col:
     st.subheader("Live Preview")
+    
+    action_col1, action_col2 = st.columns([2.5, 1])
+    with action_col1:
+        quick_capture_name = st.text_input("Quick Capture Tag", value="manual_capture", label_visibility="collapsed")
+    with action_col2:
+        if st.button("Snapshot", use_container_width=True):
+            with RUNTIME.lock:
+                frame_for_save = None if RUNTIME.latest_annotated_frame is None else RUNTIME.latest_annotated_frame.copy()
+            if frame_for_save is None:
+                st.warning("No frame available.")
+            else:
+                save_frame(frame_for_save, quick_capture_name.replace(" ", "_"))
+                with RUNTIME.lock:
+                    RUNTIME.saved_frames += 1
+                st.success("Saved!")
+
     if webrtc_streamer is None or av is None:
         st.error("Realtime preview is unavailable because WebRTC dependencies failed to load.")
         if WEBRTC_IMPORT_ERROR:
@@ -899,80 +966,18 @@ with video_col:
                 inference_size=inference_size,
                 mirror_view=mirror_view,
             )
+            
     st.markdown(
         '<div class="small-note">Use the Start button above the video widget to begin realtime detection.</div>',
         unsafe_allow_html=True,
     )
 
-with info_col:
-    @st.fragment(run_every="1s")
-    def render_live_stats() -> None:
-        stats = snapshot_runtime()
-        metric_col1, metric_col2, metric_col3 = st.columns(3)
-        metric_col1.metric("FPS", f"{stats['fps']:.1f}")
-        metric_col2.metric("Frames", f"{stats['frames_processed']}")
-        metric_col3.metric("Saved", f"{stats['saved_frames']}")
-
-        if stats["latest_alert_message"]:
-            st.warning(stats["latest_alert_message"])
-        else:
-            st.caption("No active alerts.")
-
-        with st.expander("Current Counts", expanded=True):
-            if stats["current_frame_counts"]:
-                st.table(
-                    [
-                        {"Object": obj, "Count": cnt}
-                        for obj, cnt in sorted(
-                            stats["current_frame_counts"].items(), key=lambda x: x[1], reverse=True
-                        )[:8]
-                    ]
-                )
-            else:
-                st.caption("No detections yet.")
-
-        with st.expander("Session Tracks", expanded=False):
-            if stats["session_track_counts"]:
-                st.table(
-                    [
-                        {"Object": obj, "Tracks": cnt}
-                        for obj, cnt in sorted(
-                            stats["session_track_counts"].items(), key=lambda x: x[1], reverse=True
-                        )[:8]
-                    ]
-                )
-            else:
-                st.caption("No tracking data yet.")
-
-        with st.expander("Recent Alerts", expanded=False):
-            if stats["alert_history"]:
-                for alert_line in stats["alert_history"]:
-                    st.write(f"- {alert_line}")
-            else:
-                st.caption("No alerts recorded.")
-        st.download_button(
-            label="Download Session Summary (CSV)",
-            data=(
-                "metric,value\n"
-                f"fps,{stats['fps']:.3f}\n"
-                f"frames_processed,{stats['frames_processed']}\n"
-                f"saved_frames,{stats['saved_frames']}\n"
-                f"current_objects,{sum(stats['current_frame_counts'].values())}\n"
-                f"total_unique_tracks,{sum(stats['session_track_counts'].values())}\n"
-            ),
-            file_name="rene_session_summary.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
-
-    render_live_stats()
-
 st.divider()
-st.subheader("Recent Captures")
+st.subheader("Gallery")
 capture_files = sorted(CAPTURE_DIR.glob("*.jpg"), key=lambda p: p.stat().st_mtime, reverse=True)[:6]
 if capture_files:
-    cols = st.columns(3)
+    cols = st.columns(6)
     for idx, cap_path in enumerate(capture_files):
-        cols[idx % 3].image(str(cap_path), caption=cap_path.name, use_container_width=True)
+        cols[idx % 6].image(str(cap_path), caption=cap_path.name, use_container_width=True)
 else:
     st.caption("No captures saved yet.")
