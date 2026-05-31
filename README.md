@@ -1,85 +1,47 @@
-# Activity: Python Streamlit + ML Model (RENE)
+# RENE's Real-Time Object Detection Studio
 
-## Project Overview
-This is **RENE's** real-time computer vision activity project using:
-- Streamlit
-- streamlit-webrtc
-- Ultralytics YOLOv8
-- OpenCV
+Hey there! Welcome to my real-time object detection project. This app uses your webcam to spot and track things live on screen. 
 
-The app detects and tracks objects from a webcam stream, shows live metrics, sends target-object alerts, and saves annotated frames.
+Built with:
+- Streamlit for the user interface
+- YOLOv8 for the smart object detection
+- OpenCV & streamlit-webrtc to handle the live camera feed
 
-## Fixed Model Configuration
-This project is intentionally locked to **`yolov8n.pt` only**.
+## What it does
+- Live Detection: Spots objects in real-time right from your webcam.
+- Smart Tracking: Keeps an eye on things frame by frame.
+- Custom Alerts: Pick specific objects (like a person or cell phone) and get alerted when they show up.
+- Auto & Manual Snaps: Save pictures of the detections automatically or with the click of a button.
+- Modern UI: I gave it a massive glow-up with a sleek, modern girly theme.
 
-Reason:
-- `yolov8n.pt` is the fastest YOLOv8 variant in this project.
-- It is suitable for smoother realtime performance on typical student/laptop hardware.
+## How to set it up
 
-## Main Features
-- Real-time object detection with YOLOv8 (`yolov8n.pt`)
-- Lightweight multi-frame object tracking
-- Adjustable confidence, IoU, and inference size
-- Processing interval control (`Infer Every N Frames`) for smoother performance
-- Target-object alerting with cooldown and confidence threshold
-- Auto-capture on alert and manual frame capture
-- Live runtime stats (FPS, processed frames, saved captures)
-- Downloadable session summary CSV
-- Snapshot fallback mode when WebRTC is unavailable
-- Recent captures gallery inside the app
+Just want to run it locally? It's super easy.
 
-## UI Improvements
-- Fully redesigned dashboard and sidebar controls
-- RENE-branded header and visual theme
-- Cleaner metrics panel and status chips
-- Faster access to common actions (reset stats, quick save)
-
-## Folder Structure
-```text
-PythonStreamlit+MLModel - RENE/
-|- app.py
-|- README.md
-|- requirements.txt
-|- packages.txt
-|- runtime.txt
-|- yolov8n.pt
-|- yolov8s.pt
-|- yolov8l.pt
-`- captures/                  (generated at runtime)
-```
-
-## Requirements
-- Python 3.10+
-- Webcam-enabled browser
-- OS: Windows / macOS / Linux
-
-## Setup
+1. Set up a virtual environment:
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
+```
+
+2. Install the dependencies:
+```powershell
 pip install -r requirements.txt
 ```
 
-## Run
+## How to run it
+
+Type this into your terminal:
 ```powershell
 streamlit run app.py
 ```
-Open: `http://localhost:8501`
+Then, open `http://localhost:8501` in your browser. Make sure to allow camera permissions when it asks!
 
-Allow camera permission in your browser when prompted.
+## How to use the studio
+1. Start the stream: Click start and let the camera run.
+2. Tweak settings: Play around with the confidence sliders if you want it to be more or less strict.
+3. Set alerts: Tell the app what to look for, and it will let you know when it finds it.
+4. Save memories: Hit the save button to keep any cool annotated frames, or let it auto-save during alerts.
+5. Get the stats: Download your session summary CSV when you are done.
 
-## How to Use
-1. Start the realtime stream.
-2. Adjust detection thresholds and performance controls.
-3. Select alert target objects and configure alert behavior.
-4. Save frames manually or enable auto-save on alerts.
-5. Export the session summary CSV when needed.
-
-## Performance Note
-The app uses only `yolov8n.pt` to prioritize speed and responsiveness for realtime class demonstrations.
-
-## Output Artifacts
-- Saved frames are written to `captures/`
-- Session summary can be downloaded as `rene_session_summary.csv`
-
-
+All your saved pictures will automatically go into the `captures/` folder!
